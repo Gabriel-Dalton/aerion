@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from '@iconify/svelte'
   import { _ } from '$lib/i18n'
-  import { WindowMinimise, WindowToggleMaximise, Quit } from '../../../../wailsjs/runtime/runtime'
+  import { WindowMinimise, WindowToggleMaximise, WindowIsMaximised, Environment, Quit } from '../../../../wailsjs/runtime/runtime'
 
   interface Props {
     onClose?: () => void
@@ -11,6 +11,15 @@
 
   let isMaximized = $state(false)
   let isHovering = $state(false)
+  let isWindows = $state(false)
+
+  $effect(() => {
+    Environment().then((env) => { isWindows = env.platform === 'windows' })
+    const sync = () => WindowIsMaximised().then((m) => { isMaximized = m })
+    sync()
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
+  })
 
   async function minimize() {
     await WindowMinimise()
@@ -18,7 +27,7 @@
 
   async function toggleMaximize() {
     await WindowToggleMaximise()
-    isMaximized = !isMaximized
+    isMaximized = await WindowIsMaximised()
   }
 
   function close() {
@@ -38,6 +47,42 @@
     <span class="text-sm font-medium text-foreground">Aerion</span>
   </div>
 
+  {#if isWindows}
+  <!-- Windows caption buttons, sized and coloured like the system ones -->
+  <div class="flex items-stretch h-full" role="group" aria-label={$_('aria.windowControls')}>
+    <button
+      class="caption-btn"
+      onclick={minimize}
+      title={$_('window.minimize')}
+      aria-label={$_('aria.minimizeWindow')}
+    >
+      <svg viewBox="0 0 10 10" aria-hidden="true"><line x1="0" y1="5.5" x2="10" y2="5.5" /></svg>
+    </button>
+    <button
+      class="caption-btn"
+      onclick={toggleMaximize}
+      title={isMaximized ? $_('window.restore') : $_('window.maximize')}
+      aria-label={isMaximized ? $_('aria.restoreWindow') : $_('aria.maximizeWindow')}
+    >
+      {#if isMaximized}
+        <svg viewBox="0 0 10 10" aria-hidden="true">
+          <rect x="0.5" y="2.5" width="7" height="7" />
+          <polyline points="2.5,2.5 2.5,0.5 9.5,0.5 9.5,7.5 7.5,7.5" />
+        </svg>
+      {:else}
+        <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" /></svg>
+      {/if}
+    </button>
+    <button
+      class="caption-btn caption-close"
+      onclick={close}
+      title={$_('window.close')}
+      aria-label={$_('aria.closeWindow')}
+    >
+      <svg viewBox="0 0 10 10" aria-hidden="true"><line x1="0" y1="0" x2="10" y2="10" /><line x1="10" y1="0" x2="0" y2="10" /></svg>
+    </button>
+  </div>
+  {:else}
   <!-- Mac-style traffic light controls -->
   <div
     class="flex items-center gap-2 px-3 h-full"
@@ -82,4 +127,39 @@
       {/if}
     </button>
   </div>
+  {/if}
 </header>
+
+<style>
+  .caption-btn {
+    width: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--foreground));
+    transition: background-color 0.1s;
+  }
+  .caption-btn svg {
+    width: 10px;
+    height: 10px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .caption-btn:hover {
+    background: color-mix(in srgb, currentColor 10%, transparent);
+  }
+  .caption-btn:active {
+    background: color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .caption-btn:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+  }
+  .caption-close:hover,
+  .caption-close:active {
+    background: #c42b1c;
+    color: #fff;
+  }
+</style>
